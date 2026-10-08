@@ -57,6 +57,16 @@ AddEventHandler('vrp_cad:client:playAudioAlert', function(audioFileName)
     })
 end)
 
+-- New 911 dispatch notification (sent only to the correct department)
+RegisterNetEvent('vrp_cad:client:newDispatch')
+AddEventHandler('vrp_cad:client:newDispatch', function(info)
+    TriggerEvent('chat:addMessage', { args = {"DISPATCH", info.type .. " - " .. info.location .. ": " .. info.description} })
+
+    BeginTextCommandThefeedPost("STRING")
+    AddTextComponentSubstringPlayerName("~r~" .. info.type .. "~s~~n~" .. info.location .. "~n~" .. string.sub(info.description, 1, 80))
+    EndTextCommandThefeedPostTicker(false, true)
+end)
+
 RegisterNetEvent('vrp_cad:client:receiveCivilianSearch')
 AddEventHandler('vrp_cad:client:receiveCivilianSearch', function(results)
     SendNUIMessage({
