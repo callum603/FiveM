@@ -204,3 +204,47 @@ AddEventHandler('vrp_phone:clientReceiveSettings', function(settingsData)
         settings = settingsData
     })
 end)
+
+-- ===== 911 =====
+local function GetStreetAndZone()
+    local coords = GetEntityCoords(PlayerPedId())
+    local streetHash, crossingHash = GetStreetNameAtCoord(coords.x, coords.y, coords.z)
+    local streetName = GetStreetNameFromHashKey(streetHash)
+    if crossingHash ~= 0 then
+        local crossingName = GetStreetNameFromHashKey(crossingHash)
+        if streetName and streetName ~= "" then
+            return streetName .. " / " .. crossingName
+        end
+    end
+    return (streetName and streetName ~= "") and streetName or "Unknown Location"
+end
+
+RegisterNUICallback('send911', function(data, cb)
+    local coords = GetEntityCoords(PlayerPedId())
+    TriggerServerEvent('vrp_phone:send911', data.dept, data.description,
+        { x = coords.x, y = coords.y, z = coords.z }, GetStreetAndZone())
+    cb('ok')
+end)
+
+RegisterNetEvent('vrp_phone:911result', function(success, message)
+    SendNUIMessage({ action = "emergencyResult", success = success, message = message })
+end)
+
+-- ===== Own records =====
+RegisterNUICallback('getPoliceRecords', function(data, cb)
+    TriggerServerEvent('vrp_phone:getMyPoliceRecords')
+    cb('ok')
+end)
+
+RegisterNUICallback('getMedicalRecords', function(data, cb)
+    TriggerServerEvent('vrp_phone:getMyMedicalRecords')
+    cb('ok')
+end)
+
+RegisterNetEvent('vrp_phone:clientPoliceRecords', function(records)
+    SendNUIMessage({ action = "loadPoliceRecords", records = records })
+end)
+
+RegisterNetEvent('vrp_phone:clientMedicalRecords', function(records)
+    SendNUIMessage({ action = "loadMedicalRecords", records = records })
+end)
