@@ -1,0 +1,167 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: transparent;
+    color: #e0e0e0;
+    user-select: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#mdt-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 950px;
+    height: 650px;
+    background: linear-gradient(135deg, rgba(18, 20, 32, 0.95), rgba(10, 12, 18, 0.98));
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.mdt-header {
+    background: rgba(25, 30, 45, 0.8);
+    padding: 15px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.mdt-header h2 {
+    margin: 0;
+    font-size: 18px;
+    letter-spacing: 1px;
+    color: #64b5f6;
+}
+
+.mdt-close-btn {
+    background: #e53935;
+    border: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.mdt-close-btn:hover {
+    background: #c62828;
+}
+
+.mdt-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.mdt-sidebar {
+    width: 220px;
+    background: rgba(15, 18, 28, 0.6);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.mdt-nav-btn {
+    background: transparent;
+    border: none;
+    color: #b0bec5;
+    text-align: left;
+    padding: 10px 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.mdt-nav-btn:hover, .mdt-nav-btn.active {
+    background: rgba(100, 181, 246, 0.15);
+    color: #64b5f6;
+    font-weight: 600;
+}
+
+.mdt-body {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+/* Form & Input Controls */
+input, select, textarea {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: white;
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #64b5f6;
+}
+
+button.action-btn {
+    background: #1976d2;
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+/* Form & Input Controls */
+input, select, textarea {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: white;
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+/* Fix dropdown option lists rendering white-on-white */
+select option {
+    background: #121420;
+    color: white;
+    padding: 8px;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: #64b5f6;
+}
+
+button.action-btn:hover {
+    background: #1565c0;
+}
+
+.badge {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.badge-arrest { background: #d32f2f; color: white; }
+.badge-fine { background: #f57c00; color: white; }
+.badge-warning { background: #fbc02d; color: black; }
+.badge-interaction { background: #388e3c; color: white; }

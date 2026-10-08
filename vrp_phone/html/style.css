@@ -1,0 +1,257 @@
+:root {
+    --phone-bg: #000000;
+    --app-bg: #1c1c1e;
+    --text-color: #ffffff;
+    --accent-color: #0a84ff;
+    --border-color: #3a3a3c;
+}
+
+body.theme-light {
+    --phone-bg: #f2f2f7;
+    --app-bg: #ffffff;
+    --text-color: #000000;
+    --border-color: #c6c6c8;
+}
+
+body.theme-midnight {
+    --phone-bg: #050505;
+    --app-bg: #0f0f11;
+    --text-color: #ffffff;
+    --border-color: #222226;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    user-select: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#phone-container {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
+    width: 320px;
+    height: 600px;
+    background-color: var(--phone-bg);
+    color: var(--text-color);
+    border-radius: 40px; /* Adjust based on your phone graphic/bezel */
+    overflow: hidden;    /* This clips any background or app views leaking outside */
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.iphone-bezel {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    background: #1c1c1e;
+    border-radius: 40px;
+    border: 4px solid #3a3a3c;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.iphone-speaker {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 5px;
+    background: #3a3a3c;
+    border-radius: 3px;
+    z-index: 10;
+}
+
+.iphone-screen {
+    position: absolute;
+    top: 30px;
+    left: 10px;
+    right: 10px;
+    bottom: 25px;
+    background: #000000;
+    border-radius: 20px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: #ffffff;
+}
+
+.status-bar {
+    height: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 12px;
+    font-size: 11px;
+    color: #ebebf5;
+    background: rgba(0,0,0,0.2);
+}
+
+.app-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background-color: var(--phone-bg);
+    color: var(--text-color);
+}
+
+.app-header {
+    padding: 10px 12px;
+    background: #1c1c1e;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #3a3a3c;
+}
+
+.app-header h3 {
+    margin: 0;
+    font-size: 14px;
+}
+
+.app-body {
+    flex: 1;
+    padding: 10px;
+    overflow-y: auto;
+    overflow-x: hidden; /* Prevents any horizontal scrolling */
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+	background-color: var(--phone-bg);
+    color: var(--text-color);
+}
+
+.app-body > div:first-child {
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.app-body input {
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+.scroll-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Inputs and Buttons */
+input {
+    background: #2c2c2e;
+    border: 1px solid #3a3a3c;
+    border-radius: 6px;
+    color: white;
+    padding: 6px 8px;
+    font-size: 12px;
+    outline: none;
+}
+
+input:focus {
+    border-color: #007aff;
+}
+
+/* App Grid */
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    padding: 20px 10px;
+}
+
+.app-icon {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+}
+
+.icon-bg {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    margin-bottom: 4px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+
+.app-icon span {
+    font-size: 11px;
+    color: #ebebf5;
+}
+
+/* Keypad */
+.keypad-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-bottom: 5px;
+}
+
+.keypad-grid button {
+    background: #2c2c2e;
+    border: 1px solid #3a3a3c;
+    color: white;
+    font-size: 16px;
+    padding: 8px 0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.keypad-grid button:active {
+    background: #3a3a3c;
+}
+
+/* Modals & Overlays */
+#incoming-call-modal, #active-call-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.9);
+    z-index: 1200;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+}
+
+.call-modal-content {
+    padding: 20px;
+    width: 80%;
+}
+
+.iphone-home-bar {
+    height: 15px;
+    background: rgba(255,255,255,0.2);
+    width: 100px;
+    border-radius: 10px;
+    margin: 5px auto;
+    cursor: pointer;
+}
+
+/* Update the contact input layout styling */
+#app-contacts .app-body > div:first-child > div:first-child {
+    display: flex;
+    gap: 5px;
+    width: 100%;
+}
+
+#app-contacts .app-body input {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0; /* Prevents flex items from overflowing */
+}

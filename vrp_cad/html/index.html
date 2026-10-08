@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>vRP CAD / MDT</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="mdt-container" class="hidden">
+        <div class="mdt-header">
+            <h2 id="mdt-title">POLICE MDT TERMINAL</h2>
+            <button class="mdt-close-btn" onclick="closeMDT()">X</button>
+        </div>
+        <div class="mdt-content">
+            <div class="mdt-sidebar">
+                <button class="mdt-nav-btn active" onclick="switchTab('dispatches', this)">Dispatches</button>
+                <button class="mdt-nav-btn" onclick="switchTab('personnel', this)">Personnel</button>
+                <button class="mdt-nav-btn" onclick="switchTab('civilian', this)">Civilian Database</button>
+                <button class="mdt-nav-btn" id="plate-nav-btn" onclick="switchTab('plates', this)">Plate Lookup</button>
+            </div>
+            <div class="mdt-body" id="mdt-body-content">
+                <!-- Dynamic Content Renders Here -->
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
