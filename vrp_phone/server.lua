@@ -33,6 +33,12 @@ CreateThread(function()
             `timestamp` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ]])
+    exports.ghmattimysql:execute([[
+        CREATE TABLE IF NOT EXISTS `phone_settings` (
+            `phone` VARCHAR(50) PRIMARY KEY,
+            `settings` TEXT
+        )
+    ]])
 end)
 
 function getPhoneNumber(user_id, cb)
@@ -245,4 +251,81 @@ AddEventHandler('vrp_phone:getSettings', function(data)
             TriggerClientEvent('vrp_phone:clientReceiveSettings', source, settings)
         end
     )
+end)
+
+-- ===== 911 =====
+local lastEmergencyCall = {}
+
+AddEventHandler('playerDropped', function()
+    lastEmergencyCall[source] = nil
+end)
+
+RegisterServerEvent('vrp_phone:send911', function(dept, description, coords, street)
+    local src = source
+    local user_id = vRP.getUserId({src})
+    if not user_id then return end
+
+    if dept ~= "police" and dept ~= "ems" then return end
+
+    if lastEmergencyCall[src] and (os.time() - lastEmergencyCall[src]) < 30 then
+        TriggerClientEvent('vrp_phone:911result', src, false, "Please wait before placing another 911 call.")
+        return
+    end
+
+    if type(coords) ~= "table" then coords = { x = 0.0, y = 0.0, z = 0.0 } end
+
+    local ok, result = pcall(function()
+        return exports['vrp_cad']:create911Call(src, dept, description,
+            tonumber(coords.x) or 0.0, tonumber(coords.y) or 0.0, tonumber(coords.z) or 0.0,
+            tostring(street or "Unknown Location"))
+    end)
+
+    if ok and result then
+        lastEmergencyCall[src] = os.time()
+        TriggerClientEvent('vrp_phone:911result', src, true, "911 call sent. Help is on the way.")
+    else
+        TriggerClientEvent('vrp_phone:911result', src, false, "Emergency services are unavailable right now.")
+    end
+end)
+
+-- ===== Own records =====
+local function getFullName(user_id, cb)
+    exports.ghmattimysql:execute("SELECT * FROM vrp_user_identities WHERE user_id = @uid", {['@uid'] = user_id}, function(rows)
+        local r = rows and rows[1]
+        if r then
+            cb(r.firstname .. " " .. (r.name or r.registration or ""))
+        else
+            cb(nil)
+        end
+    end)
+end
+
+RegisterServerEvent('vrp_phone:getMyPoliceRecords', function()
+    local src = source
+    local user_id = vRP.getUserId({src})
+    if not user_id then return end
+
+    getFullName(user_id, function(fullName)
+        local uidStr = tostring(user_id)
+        exports.ghmattimysql:execute("SELECT id, report_type, author, title, details, fine_amount, date FROM vrp_cad_criminal_records WHERE target_name = @n OR target_name = @u ORDER BY id DESC", {
+            ['@n'] = fullName or uidStr, ['@u'] = uidStr
+        }, function(rows)
+            TriggerClientEvent('vrp_phone:clientPoliceRecords', src, rows or {})
+        end)
+    end)
+end)
+
+RegisterServerEvent('vrp_phone:getMyMedicalRecords', function()
+    local src = source
+    local user_id = vRP.getUserId({src})
+    if not user_id then return end
+
+    getFullName(user_id, function(fullName)
+        local uidStr = tostring(user_id)
+        exports.ghmattimysql:execute("SELECT id, author, diagnosis, treatment, service_fee, date FROM vrp_cad_medical_records WHERE target_name = @n OR target_name = @u ORDER BY id DESC", {
+            ['@n'] = fullName or uidStr, ['@u'] = uidStr
+        }, function(rows)
+            TriggerClientEvent('vrp_phone:clientMedicalRecords', src, rows or {})
+        end)
+    end)
 end)
