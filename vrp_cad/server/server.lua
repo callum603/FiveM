@@ -23,6 +23,90 @@ local function getFriendlyVehicleName(spawnCode)
     return vehicleFriendlyNames[cleanCode] or spawnCode
 end
 
+-- ===== Department helpers =====
+local function getDepts(uid)
+    local isCop = vRP.hasPermission({uid, "police.menu"}) or vRP.hasPermission({uid, "police.loadout"}) or vRP.hasGroup({uid, "cop"}) or vRP.hasGroup({uid, "Police"})
+    local isEms = vRP.hasPermission({uid, "ems.menu"}) or vRP.hasPermission({uid, "ems.revive"}) or vRP.hasGroup({uid, "ems"}) or vRP.hasGroup({uid, "EMS"})
+    return isCop, isEms
+end
+
+-- Only returns calls this user's department(s) should see
+local function getCallsFor(uid, cb)
+    local isCop, isEms = getDepts(uid)
+    local depts = "'all'"
+    if isCop then depts = depts .. ",'police'" end
+    if isEms then depts = depts .. ",'ems'" end
+    exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed' AND department IN (" .. depts .. ") ORDER BY id DESC", {}, cb)
+end
+
+local function broadcastCalls()
+    for uid, src in pairs(vRP.getUsers({})) do
+        local isCop, isEms = getDepts(uid)
+        if isCop or isEms then
+            getCallsFor(uid, function(calls)
+                TriggerClientEvent('vrp_cad:client:updateCalls', src, calls or {})
+            end)
+        end
+    end
+end
+
+-- ===== 911 call from the phone (exported) =====
+local function create911Call(src, dept, description, x, y, z, streetName)
+    local user_id = vRP.getUserId({src})
+    if not user_id then return false end
+    if dept ~= "police" and dept ~= "ems" then return false end
+
+    description = (tostring(description or ""):gsub("~", "")):sub(1, 300)
+    if description == "" then description = "No description provided" end
+    streetName = tostring(streetName or "Unknown Location")
+
+    exports.ghmattimysql:execute("SELECT * FROM vrp_user_identities WHERE user_id = @uid", {['@uid'] = user_id}, function(rows)
+        local row = rows and rows[1] or nil
+        local callerName = row and (row.firstname .. " " .. (row.name or row.registration or "")) or ("Citizen #" .. user_id)
+        local phone = row and row.phone or "N/A"
+        local age = row and tostring(row.age) or "N/A"
+
+        exports.ghmattimysql:execute("SELECT home, number FROM vrp_user_homes WHERE user_id = @uid", {['@uid'] = user_id}, function(homeRows)
+            local address = "N/A"
+            if homeRows and #homeRows > 0 then
+                address = homeRows[1].home .. (homeRows[1].number and (" #" .. homeRows[1].number) or "")
+            end
+
+            local typeLabel = dept == "police" and "911 Police Call" or "911 EMS Call"
+
+            exports.ghmattimysql:execute("INSERT INTO vrp_cad_calls (call_type, location, description, status, coords_x, coords_y, coords_z, assigned_units, caller_name, caller_phone, caller_age, caller_address, department) VALUES (@type, @loc, @desc, 'active', @x, @y, @z, '', @cname, @cphone, @cage, @caddr, @dept)", {
+                ['@type'] = typeLabel,
+                ['@loc'] = streetName,
+                ['@desc'] = description,
+                ['@x'] = tonumber(x) or 0.0,
+                ['@y'] = tonumber(y) or 0.0,
+                ['@z'] = tonumber(z) or 0.0,
+                ['@cname'] = callerName,
+                ['@cphone'] = phone,
+                ['@cage'] = age,
+                ['@caddr'] = address,
+                ['@dept'] = dept
+            }, function()
+                -- Sound + notification only to the correct group
+                for uid, s in pairs(vRP.getUsers({})) do
+                    local isCop, isEms = getDepts(uid)
+                    if (dept == "police" and isCop) or (dept == "ems" and isEms) then
+                        TriggerClientEvent('vrp_cad:client:playAudioAlert', s, 'cad_dispatch.mp3')
+                        TriggerClientEvent('vrp_cad:client:newDispatch', s, {
+                            type = typeLabel,
+                            location = streetName,
+                            description = description
+                        })
+                    end
+                end
+                broadcastCalls()
+            end)
+        end)
+    end)
+    return true
+end
+exports('create911Call', create911Call)
+
 Citizen.CreateThread(function()
     exports.ghmattimysql:execute([[
         CREATE TABLE IF NOT EXISTS vrp_cad_calls (
@@ -39,9 +123,13 @@ Citizen.CreateThread(function()
             caller_phone VARCHAR(50) DEFAULT 'N/A',
             caller_age VARCHAR(50) DEFAULT 'N/A',
             caller_address VARCHAR(255) DEFAULT 'N/A',
+            department VARCHAR(20) DEFAULT 'all',
             date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
-    ]])
+    ]], {}, function()
+        -- Adds the column on existing installs (MariaDB syntax)
+        exports.ghmattimysql:execute("ALTER TABLE vrp_cad_calls ADD COLUMN IF NOT EXISTS department VARCHAR(20) DEFAULT 'all'", {})
+    end)
     exports.ghmattimysql:execute([[
         CREATE TABLE IF NOT EXISTS vrp_cad_criminal_records (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -71,11 +159,10 @@ RegisterCommand('tablet', function(source, args, rawCommand)
     local user_id = vRP.getUserId({source})
     if not user_id then return end
 
-    local isCop = vRP.hasPermission({user_id, "police.menu"}) or vRP.hasPermission({user_id, "police.loadout"}) or vRP.hasGroup({user_id, "cop"}) or vRP.hasGroup({user_id, "Police"})
-    local isEms = vRP.hasPermission({user_id, "ems.menu"}) or vRP.hasPermission({user_id, "ems.revive"}) or vRP.hasGroup({user_id, "ems"}) or vRP.hasGroup({user_id, "EMS"})
+    local isCop, isEms = getDepts(user_id)
 
     if isCop or isEms then
-        exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed'", {}, function(calls)
+        getCallsFor(user_id, function(calls)
             TriggerClientEvent('vrp_cad:client:openMDT', source, {isCop = isCop, isEms = isEms}, calls or {}, activeOfficers)
         end)
     else
@@ -98,7 +185,7 @@ AddEventHandler('vrp_cad:server:updateStatus', function(department, statusCode, 
     vRP.getUserIdentity({user_id, function(identity)
         local firstname = identity and identity.firstname or nil
         local lastname = identity and (identity.name or identity.registration) or nil
-        
+
         local queryStr = "SELECT * FROM vrp_user_identities WHERE user_id = @user_id"
         local queryParams = {['@user_id'] = user_id}
 
@@ -112,8 +199,8 @@ AddEventHandler('vrp_cad:server:updateStatus', function(department, statusCode, 
             local personnelName = row and (row.firstname .. " " .. (row.name or row.registration)) or (firstname and lastname and (firstname .. " " .. lastname) or ("Personnel #" .. user_id))
             local phone = row and row.phone or "N/A"
             local age = row and tostring(row.age) or "N/A"
-            
-            -- Fetch address from vrp_user_homes table[cite: 1]
+
+            -- Fetch address from vrp_user_homes table
             exports.ghmattimysql:execute("SELECT home, number FROM vrp_user_homes WHERE user_id = @uid", {['@uid'] = user_id}, function(homeRows)
                 local address = "N/A"
                 if homeRows and #homeRows > 0 then
@@ -141,7 +228,7 @@ AddEventHandler('vrp_cad:server:updateStatus', function(department, statusCode, 
                     if clientCoords then
                         cx, cy, cz = clientCoords.x, clientCoords.y, clientCoords.z
                     end
-                    
+
                     exports.ghmattimysql:execute("INSERT INTO vrp_cad_calls (call_type, location, description, status, coords_x, coords_y, coords_z, assigned_units, caller_name, caller_phone, caller_age, caller_address) VALUES (@type, @loc, @desc, 'active', @x, @y, @z, '', @cname, @cphone, @cage, @caddr)", {
                         ['@type'] = "10-99 Distress (" .. string.upper(department) .. ")",
                         ['@loc'] = locationText,
@@ -154,15 +241,13 @@ AddEventHandler('vrp_cad:server:updateStatus', function(department, statusCode, 
                         ['@cage'] = age,
                         ['@caddr'] = address
                     }, function()
-                        exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed'", {}, function(calls)
-                            local userSources = vRP.getUsers({})
-                            for uid, src in pairs(userSources) do
-                                if vRP.hasPermission({uid, "police.menu"}) or vRP.hasGroup({uid, "cop"}) or vRP.hasGroup({uid, "Police"}) or vRP.hasPermission({uid, "ems.menu"}) or vRP.hasGroup({uid, "ems"}) or vRP.hasGroup({uid, "EMS"}) then
-                                    TriggerClientEvent('vrp_cad:client:updateOfficerRoster', src, activeOfficers)
-                                    TriggerClientEvent('vrp_cad:client:updateCalls', src, calls or {})
-                                end
+                        for uid, src in pairs(vRP.getUsers({})) do
+                            local c, e = getDepts(uid)
+                            if c or e then
+                                TriggerClientEvent('vrp_cad:client:updateOfficerRoster', src, activeOfficers)
                             end
-                        end)
+                        end
+                        broadcastCalls()
                     end)
                 else
                     local userSources = vRP.getUsers({})
@@ -192,7 +277,7 @@ AddEventHandler('vrp_cad:server:triggerPanicButton', function(clientCoords, stre
     vRP.getUserIdentity({user_id, function(identity)
         local firstname = identity and identity.firstname or nil
         local lastname = identity and (identity.name or identity.registration) or nil
-        
+
         local queryStr = "SELECT * FROM vrp_user_identities WHERE user_id = @user_id"
         local queryParams = {['@user_id'] = user_id}
 
@@ -207,7 +292,7 @@ AddEventHandler('vrp_cad:server:triggerPanicButton', function(clientCoords, stre
             local phone = row and row.phone or "N/A"
             local age = row and tostring(row.age) or "N/A"
 
-            -- Fetch address from vrp_user_homes table[cite: 1]
+            -- Fetch address from vrp_user_homes table
             exports.ghmattimysql:execute("SELECT home, number FROM vrp_user_homes WHERE user_id = @uid", {['@uid'] = user_id}, function(homeRows)
                 local address = "N/A"
                 if homeRows and #homeRows > 0 then
@@ -243,15 +328,13 @@ AddEventHandler('vrp_cad:server:triggerPanicButton', function(clientCoords, stre
                     ['@cage'] = age,
                     ['@caddr'] = address
                 }, function()
-                    exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed'", {}, function(calls)
-                        local userSources = vRP.getUsers({})
-                        for uid, src in pairs(userSources) do
-                            if vRP.hasPermission({uid, "police.menu"}) or vRP.hasGroup({uid, "cop"}) or vRP.hasGroup({uid, "Police"}) or vRP.hasPermission({uid, "ems.menu"}) or vRP.hasGroup({uid, "ems"}) or vRP.hasGroup({uid, "EMS"}) then
-                                TriggerClientEvent('vrp_cad:client:updateOfficerRoster', src, activeOfficers)
-                                TriggerClientEvent('vrp_cad:client:updateCalls', src, calls or {})
-                            end
+                    for uid, src in pairs(vRP.getUsers({})) do
+                        local c, e = getDepts(uid)
+                        if c or e then
+                            TriggerClientEvent('vrp_cad:client:updateOfficerRoster', src, activeOfficers)
                         end
-                    end)
+                    end
+                    broadcastCalls()
                 end)
             end)
         end)
@@ -270,15 +353,10 @@ AddEventHandler('vrp_cad:server:assignToCall', function(callId)
         exports.ghmattimysql:execute("SELECT assigned_units FROM vrp_cad_calls WHERE id = @id", {['@id'] = callId}, function(callRows)
             if callRows and #callRows > 0 then
                 local currentAssigned = callRows[1].assigned_units or ""
-                if not string.find(currentAssigned, officerName) then
+                if not string.find(currentAssigned, officerName, 1, true) then
                     local newAssigned = currentAssigned == "" and officerName or (currentAssigned .. ", " .. officerName)
                     exports.ghmattimysql:execute("UPDATE vrp_cad_calls SET assigned_units = @units WHERE id = @id", {['@units'] = newAssigned, ['@id'] = callId}, function()
-                        exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed'", {}, function(calls)
-                            local userSources = vRP.getUsers({})
-                            for uid, src in pairs(userSources) do
-                                TriggerClientEvent('vrp_cad:client:updateCalls', src, calls or {})
-                            end
-                        end)
+                        broadcastCalls()
                     end)
                 end
             end
@@ -294,12 +372,7 @@ AddEventHandler('vrp_cad:server:closeCall', function(callId)
 
     if vRP.hasPermission({user_id, "police.menu"}) or vRP.hasGroup({user_id, "cop"}) or vRP.hasGroup({user_id, "Police"}) or vRP.hasPermission({user_id, "ems.menu"}) or vRP.hasGroup({user_id, "ems"}) or vRP.hasGroup({user_id, "EMS"}) then
         exports.ghmattimysql:execute("UPDATE vrp_cad_calls SET status = 'closed' WHERE id = @id", {['@id'] = callId}, function()
-            exports.ghmattimysql:execute("SELECT * FROM vrp_cad_calls WHERE status != 'closed'", {}, function(calls)
-                local userSources = vRP.getUsers({})
-                for uid, src in pairs(userSources) do
-                    TriggerClientEvent('vrp_cad:client:updateCalls', src, calls or {})
-                end
-            end)
+            broadcastCalls()
         end)
     end
 end)
@@ -329,7 +402,7 @@ local function performCivilianSearch(source, queryText)
                 local userIdStr = tostring(identity.user_id)
                 local targetUserId = identity.user_id
 
-                -- Fetch home address from vrp_user_homes table[cite: 1]
+                -- Fetch home address from vrp_user_homes table
                 exports.ghmattimysql:execute("SELECT home, number FROM vrp_user_homes WHERE user_id = @uid", {['@uid'] = targetUserId}, function(homeRows)
                     local addressStr = "N/A"
                     if homeRows and #homeRows > 0 then
@@ -350,7 +423,7 @@ local function performCivilianSearch(source, queryText)
                                 criminal_records = criminalRows or {},
                                 medical_records = medicalRows or {}
                             })
-                            
+
                             completed = completed + 1
                             if completed == #identities then
                                 TriggerClientEvent('vrp_cad:client:receiveCivilianSearch', source, civResults)
@@ -430,7 +503,7 @@ AddEventHandler('vrp_cad:server:addCriminalRecord', function(data)
 
     vRP.getUserIdentity({user_id, function(identity)
         local officerName = identity and (identity.firstname .. " " .. (identity.name or identity.registration)) or ("Officer #" .. user_id)
-        
+
         exports.ghmattimysql:execute("INSERT INTO vrp_cad_criminal_records (target_name, author, report_type, title, details, fine_amount) VALUES (@tname, @author, @rtype, @title, @details, @fine)", {
             ['@tname'] = targetName,
             ['@author'] = officerName,
@@ -460,8 +533,8 @@ AddEventHandler('vrp_cad:server:deleteCriminalRecord', function(recordId, target
 
     if vRP.hasPermission({user_id, "police.menu"}) or vRP.hasGroup({user_id, "cop"}) or vRP.hasGroup({user_id, "Police"}) then
         exports.ghmattimysql:execute("DELETE FROM vrp_cad_criminal_records WHERE id = @id", {['@id'] = recordId}, function()
-            if targetName then 
-                performCivilianSearch(source, targetName) 
+            if targetName then
+                performCivilianSearch(source, targetName)
             end
         end)
     end
@@ -531,7 +604,7 @@ AddEventHandler('vrp_cad:server:addMedicalRecord', function(data)
 
     vRP.getUserIdentity({user_id, function(identity)
         local medicName = identity and (identity.firstname .. " " .. (identity.name or identity.registration)) or ("Paramedic #" .. user_id)
-        
+
         exports.ghmattimysql:execute("INSERT INTO vrp_cad_medical_records (target_name, author, diagnosis, treatment, service_fee) VALUES (@tname, @author, @diag, @treat, @fee)", {
             ['@tname'] = targetName,
             ['@author'] = medicName,
@@ -545,7 +618,7 @@ AddEventHandler('vrp_cad:server:addMedicalRecord', function(data)
                 if targetSource then
                     TriggerClientEvent('chat:addMessage', targetSource, { args = {"EMS", "You have been charged $" .. serviceFee .. " for medical services: " .. treatment} })
                 end
-                
+
                 vRP.giveBankMoney({user_id, serviceFee})
                 TriggerClientEvent('chat:addMessage', source, { args = {"EMS", "You received a commission of $" .. serviceFee .. " for filing medical services."} })
             end
